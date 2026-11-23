@@ -6,6 +6,14 @@
 #include <ezTime.h>
 
 #define led 2
+unsigned long tempoAntPisca = 0;
+unsigned long intervalo = 3000;
+unsigned long tempoPressionou = 0;
+
+bool estadoL = false;
+bool piscando = false;
+bool pressionado = false;
+bool estadoRemoto = false;
 
 
 const char *mqtt_server = "broker.emqx.io";
@@ -15,7 +23,7 @@ const char *mqtt_topic_sub = "shrek123/pub";
 const char *mqtt_topic_pub = "burro123/pub";
 
 void conectaMqtt();
-void retornoMqtt(char *topic, byte *payload, unsigned int lenght);
+void retornoMqtt(char *topic, byte *payload, unsigned int length);
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -43,6 +51,8 @@ void setup() {
 }
 
 void loop() {
+
+  unsigned long agora = millis();
 
   events();
   reconexaoWifi();
@@ -78,13 +88,42 @@ void loop() {
 
     client.publish(mqtt_topic_pub, stringJson.c_str());
 
+    if (textoDigitado == "L")
+    {
+      piscando = false;
+      estadoL = true;
+    }
+    else if ( textoDigitado == "D")
+    {
+      piscando = false;
+      estadoL = false;
+    }
+    else if (textoDigitado == "P")
+    {
+      piscando = true;
+    }
+    else
+    {
+      Serial.println("Mensagem invalida");
+    }
+
     Serial.print("enviado: ");
     Serial.println(stringJson);
 
     
   }
+
+  if (piscando){
+    if (agora - tempoAntPisca >= intervalo){
+    estadoL = !estadoL;
+    tempoAntPisca = agora;
+  }
   
+  }
+  digitalWrite(led, estadoL);
 }
+
+
 
 void conectaMqtt(){
   while (!client.connected())
@@ -108,60 +147,54 @@ void conectaMqtt(){
   
 }
 
-void retornoMqtt(char *topic, byte *payload, unsigned int lenght){
+void retornoMqtt(char *topic, byte *payload, unsigned int length){
   Serial.print("Mensagem recebida em ");
   Serial.print(topic);
   Serial.print(": ");
 
   String msgRecebida = "";
-  for (int i = 0; i < lenght; i++)
-  {
+  for (unsigned int i = 0; i < length; i++) {
     msgRecebida += (char)payload[i];
   }
-
+  msgRecebida.trim();
   Serial.println(msgRecebida);
 
-  if (msgRecebida == "L" || msgRecebida == "l"){
-    digitalWrite(led, HIGH);
-  } else if ( msgRecebida == "d" || msgRecebida == "D"){
-    digitalWrite(led, LOW);
-  }
+  String comando = msgRecebida;
 
   JsonDocument doc;
   DeserializationError erro = deserializeJson(doc, msgRecebida);
 
+  if (!erro && doc["msg"].is<const char *>()) {
+    const char *dispositivo = doc["disp"] | "desconhecido";
+    const char *timestamp = doc["timestamp"] | "sem data";
+    const char *msg = doc["msg"];
 
-  if (erro)
-  {
-    Serial.print("Erro ao decodificar o JSON: ");
-    Serial.println(erro.c_str());
-    return;
+    Serial.println("Dados decodificados");
+    Serial.print("Esp: ");
+    Serial.println(dispositivo);
+    Serial.print("Data e hora: ");
+    Serial.println(timestamp);
+    Serial.print("Mensagem: ");
+    Serial.println(msg);
+    Serial.println("--------------------------------");
+
+    comando = String(msg);
+    comando.trim();
+  } else {
+    Serial.println("Mensagem em texto puro ");
   }
 
-  const char* dispositivo = doc["disp"];
-  const char* timestamp = doc["timestamp"];
-  const char* msg = doc["msg"];
-  Serial.println("Dados decodificados");
-  Serial.print("Esp: ");
-  Serial.println(dispositivo);
-  Serial.print("Data e hora: ");
-  Serial.println(timestamp);
-  Serial.print("Mensagem: ");
-  Serial.println(msg);
-  Serial.println("--------------------------------");
+  comando.toUpperCase();
 
-  
-String mensagemTexto = String(msg); // Converte para String para poder pesquisar palavras
-  mensagemTexto.toLowerCase();        // Deixa tudo minúsculo 
-  if (mensagemTexto.indexOf("desligar") != -1)
-  {
-    digitalWrite(led, LOW);
+  if (comando == "L") {
+    piscando = false;
+    estadoL = true;
+  } else if (comando == "D") {
+    piscando = false;
+    estadoL = false;
+  } else if (comando == "P") {
+    piscando = true;
+  } else {
+    Serial.println("Comando invalido");
   }
-  else if (mensagemTexto.indexOf("ligar") != -1)
-  {
-    digitalWrite(led, HIGH);
-  }
-    
-  
-  
 }
