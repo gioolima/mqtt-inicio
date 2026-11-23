@@ -5,6 +5,9 @@
 #include "internet.h"
 #include <ezTime.h>
 
+#define led 2
+
+
 const char *mqtt_server = "broker.emqx.io";
 const int mqtt_port = 1883;
 const char *mqtt_client_id = "senai134_esp_giovanna";
@@ -20,6 +23,8 @@ PubSubClient client(espClient);
 Timezone sp;
 
 void setup() {
+
+  pinMode(led, OUTPUT);
 
   Serial.begin(115200);
   Serial.setTimeout(5000);
@@ -116,8 +121,15 @@ void retornoMqtt(char *topic, byte *payload, unsigned int lenght){
 
   Serial.println(msgRecebida);
 
+  if (msgRecebida == "L" || msgRecebida == "l"){
+    digitalWrite(led, HIGH);
+  } else if ( msgRecebida == "d" || msgRecebida == "D"){
+    digitalWrite(led, LOW);
+  }
+
   JsonDocument doc;
   DeserializationError erro = deserializeJson(doc, msgRecebida);
+
 
   if (erro)
   {
@@ -137,6 +149,18 @@ void retornoMqtt(char *topic, byte *payload, unsigned int lenght){
   Serial.print("Mensagem: ");
   Serial.println(msg);
   Serial.println("--------------------------------");
+
+  
+String mensagemTexto = String(msg); // Converte para String para poder pesquisar palavras
+  mensagemTexto.toLowerCase();        // Deixa tudo minúsculo 
+  if (mensagemTexto.indexOf("desligar") != -1)
+  {
+    digitalWrite(led, LOW);
+  }
+  else if (mensagemTexto.indexOf("ligar") != -1)
+  {
+    digitalWrite(led, HIGH);
+  }
     
   
   
